@@ -59,9 +59,38 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    custom_collections (collection_id, user_id) {
+        collection_id -> Int4,
+        user_id -> Int4,
+        #[max_length = 255]
+        name -> Varchar,
+        #[max_length = 255]
+        description -> Nullable<Varchar>,
+        created_at -> Nullable<Timestamp>,
+        custom_collection -> Jsonb
+    }
+}
+
+diesel::table! {
+    wishlists (user_id) {
+        user_id -> Int4,
+        wishlist -> Jsonb,
+    }
+}
+
 diesel::joinable!(cards -> sets (set_id));
 diesel::joinable!(user_collections -> cards (card_id));
 diesel::joinable!(user_collections -> sets (set_id));
 diesel::joinable!(user_collections -> users (user_id));
+diesel::joinable!(custom_collections -> users (user_id));
+diesel::joinable!(wishlists -> users (user_id));
 
-diesel::allow_tables_to_appear_in_same_query!(cards, sets, user_collections, users,);
+diesel::allow_tables_to_appear_in_same_query!(
+    cards,
+    sets,
+    user_collections,
+    users,
+    custom_collections,
+    wishlists
+);
