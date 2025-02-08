@@ -147,7 +147,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 number: card_data.number.clone(),
                 img_small: card_data.images.small.clone(),
                 img_hires: card_data.images.large.clone(),
-                sort_key: sort_num,
+                sort_key: Some(sort_num),
             };
 
             diesel::insert_into(cards::table)

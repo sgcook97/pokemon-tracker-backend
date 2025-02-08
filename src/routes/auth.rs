@@ -18,6 +18,7 @@ pub fn auth_routes() -> Router<AppState> {
     Router::new()
         .route("/login", post(login))
         .route("/register", post(register))
+        .route("/logout", post(logout))
 }
 
 #[derive(Deserialize)]
@@ -133,6 +134,22 @@ async fn login(
 
     return (
         StatusCode::OK,
-        response::Json(json!({ "message": "Login successful.", "token": token })),
+        response::Json(json!({
+            "message": "Login successful.",
+            "token": token,
+            "user": {
+                "user_id": user.user_id,
+                "email": user.email
+            }
+        })),
+    );
+}
+
+async fn logout() -> impl IntoResponse {
+    return (
+        StatusCode::OK,
+        response::Json(json!({
+            "message": "Successful logout"
+        })),
     );
 }

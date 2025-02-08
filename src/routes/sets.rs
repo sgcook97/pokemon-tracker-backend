@@ -13,15 +13,15 @@ use axum::{
 };
 
 use diesel::prelude::*;
-use rand::Rng;
+// use rand::Rng;
 use serde_json::json;
 
 pub fn set_routes() -> Router<AppState> {
     Router::new()
         .route("/{set_id}", get(set_by_id))
         .route("/{set_id}/cards", get(get_cards_by_set))
-        .layer(middleware::from_fn(auth_middleware::verify_token))
-        .route("/", get(get_random_set))
+        .route("/", get(get_featured_sets))
+    // .layer(middleware::from_fn(auth_middleware::verify_token))
 }
 
 async fn set_by_id(
@@ -58,48 +58,6 @@ async fn set_by_id(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 response::Json(json!({
                     "error": "Error retrieving set information."
-                })),
-            );
-        }
-    }
-}
-
-async fn get_random_set(State(state): State<AppState>) -> impl IntoResponse {
-    use crate::schema::sets::dsl::*;
-
-    let conn = &mut state
-        .db_pool
-        .get()
-        .expect("Failed to get a connection from the pool");
-
-    let count: i64 = sets.count().get_result(conn).expect("Error counting sets");
-
-    if count == 0 {
-        return (
-            StatusCode::NOT_FOUND,
-            response::Json(json!({
-                "error": "No sets found in database."
-            })),
-        );
-    }
-
-    let random_offset = rand::thread_rng().gen_range(0..count);
-
-    match sets.offset(random_offset).first::<Set>(conn) {
-        Ok(set) => {
-            return (
-                StatusCode::OK,
-                response::Json(json!({
-                    "message": "Set successfully retrieved.",
-                    "data": set
-                })),
-            );
-        }
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                response::Json(json!({
-                    "error": "Error retrieving set from database."
                 })),
             );
         }
@@ -149,3 +107,85 @@ async fn get_cards_by_set(
         }
     }
 }
+
+async fn get_featured_sets(State(state): State<AppState>) -> impl IntoResponse {
+    use crate::schema::sets::dsl::*;
+
+    let conn = &mut state
+        .db_pool
+        .get()
+        .expect("Failed to get a connection from the pool");
+
+    let most_recent_series: Option<String> = sets
+        .select(series)
+        .order_by(release_date.desc())
+        .first::<Option<String>>(conn)
+        .ok()
+        .flatten();
+
+    match sets
+        .filter(series.eq(most_recent_series))
+        .order_by(release_date.desc())
+        .load::<Set>(conn)
+    {
+        Ok(sets_data) => {
+            return (
+                StatusCode::OK,
+                response::Json(json!({
+                    "message": "Successfully retrieved featured sets.",
+                    "sets": sets_data
+                })),
+            );
+        }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                response::Json(json!({
+                    "error": "Error retrieving sets from the server."
+                })),
+            );
+        }
+    }
+}
+
+// async fn get_random_set(State(state): State<AppState>) -> impl IntoResponse {
+//     use crate::schema::sets::dsl::*;
+
+//     let conn = &mut state
+//         .db_pool
+//         .get()
+//         .expect("Failed to get a connection from the pool");
+
+//     let count: i64 = sets.count().get_result(conn).expect("Error counting sets");
+
+//     if count == 0 {
+//         return (
+//             StatusCode::NOT_FOUND,
+//             response::Json(json!({
+//                 "error": "No sets found in database."
+//             })),
+//         );
+//     }
+
+//     let random_offset = rand::thread_rng().gen_range(0..count);
+
+//     match sets.offset(random_offset).first::<Set>(conn) {
+//         Ok(set) => {
+//             return (
+//                 StatusCode::OK,
+//                 response::Json(json!({
+//                     "message": "Set successfully retrieved.",
+//                     "data": set
+//                 })),
+//             );
+//         }
+//         Err(_) => {
+//             return (
+//                 StatusCode::INTERNAL_SERVER_ERROR,
+//                 response::Json(json!({
+//                     "error": "Error retrieving set from database."
+//                 })),
+//             );
+//         }
+//     }
+// }

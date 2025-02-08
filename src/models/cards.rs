@@ -13,5 +13,5 @@ pub struct Card {
     pub number: Option<String>,
     pub img_small: Option<String>,
     pub img_hires: Option<String>,
-    pub sort_key: i32,
+    pub sort_key: Option<i32>,
 }

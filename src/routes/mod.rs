@@ -12,6 +12,7 @@ pub fn create_router() -> Router<AppState> {
     Router::new()
         .nest("/auth", auth::auth_routes())
         .nest("/sets", sets::set_routes())
+        .nest("/cards", cards::card_routes())
         .route("/", get(index_route))
         .route("/health", get(health_check))
 }

@@ -16,7 +16,7 @@ diesel::table! {
         img_small -> Nullable<Varchar>,
         #[max_length = 255]
         img_hires -> Nullable<Varchar>,
-        sort_key -> Integer
+        sort_key -> Nullable<Integer>
     }
 }
 
