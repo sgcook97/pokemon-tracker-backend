@@ -1,15 +1,19 @@
 use crate::models::user::{NewUser, User};
 use crate::schema::users::dsl::*;
 use crate::utils::hash::verify_pw;
-use crate::utils::{hash::hash_pw, jwt::generate_jwt};
+use crate::utils::{
+    hash::hash_pw,
+    jwt::{generate_jwt, verify_jwt, Claims},
+};
 use crate::AppState;
 use axum::{
     extract::{self, State},
     http::StatusCode,
     response::{self, IntoResponse},
-    routing::post,
+    routing::{get, post},
     Router,
 };
+use axum_extra::extract::cookie::{Cookie, CookieJar};
 use diesel::prelude::*;
 use serde::Deserialize;
 use serde_json::json;
@@ -19,6 +23,7 @@ pub fn auth_routes() -> Router<AppState> {
         .route("/login", post(login))
         .route("/register", post(register))
         .route("/logout", post(logout))
+        .route("/user", get(get_user))
 }
 
 #[derive(Deserialize)]
@@ -82,6 +87,7 @@ struct LoginRequest {
 
 async fn login(
     State(state): State<AppState>,
+    jar: CookieJar,
     extract::Json(payload): extract::Json<LoginRequest>,
 ) -> impl IntoResponse {
     let conn = &mut state
@@ -94,12 +100,14 @@ async fn login(
         Err(diesel::result::Error::NotFound) => {
             return (
                 StatusCode::UNAUTHORIZED,
+                jar,
                 response::Json(json!({ "error": "Invalid email or password." })),
             );
         }
         Err(_) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
+                jar,
                 response::Json(json!({ "error": "Failed to query the database." })),
             );
         }
@@ -110,6 +118,7 @@ async fn login(
             if !is_valid {
                 return (
                     StatusCode::UNAUTHORIZED,
+                    jar,
                     response::Json(json!({ "error": "Invalid email or password." })),
                 );
             }
@@ -117,6 +126,7 @@ async fn login(
         Err(_) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
+                jar,
                 response::Json(json!({ "error": "Failed to verify password." })),
             );
         }
@@ -127,16 +137,25 @@ async fn login(
         Err(_) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
+                jar,
                 response::Json(json!({ "error": "Failed to generate JWT." })),
             );
         }
     };
 
+    let cookie = Cookie::build(("auth_token", token))
+        .http_only(true)
+        .secure(false)
+        .path("/")
+        .max_age(time::Duration::days(1));
+
+    let updated_jar = jar.add(cookie);
+
     return (
         StatusCode::OK,
+        updated_jar,
         response::Json(json!({
             "message": "Login successful.",
-            "token": token,
             "user": {
                 "user_id": user.user_id,
                 "email": user.email
@@ -150,6 +169,59 @@ async fn logout() -> impl IntoResponse {
         StatusCode::OK,
         response::Json(json!({
             "message": "Successful logout"
+        })),
+    );
+}
+
+async fn get_user(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
+    let conn = &mut state
+        .db_pool
+        .get()
+        .expect("Failed to get a connection from the pool");
+
+    let token = match jar.get("auth_token") {
+        Some(cookie) => cookie.value().to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                response::Json(json!({ "error": "Missing auth token." })),
+            );
+        }
+    };
+
+    let claims: Claims = match verify_jwt(&token) {
+        Ok(claims) => claims,
+        Err(_) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                response::Json(json!({ "error": "Invalid or expired token." })),
+            );
+        }
+    };
+
+    let user = match users.filter(user_id.eq(claims.user_id)).first::<User>(conn) {
+        Ok(user) => user,
+        Err(diesel::result::Error::NotFound) => {
+            return (
+                StatusCode::NOT_FOUND,
+                response::Json(json!({ "error": "User not found." })),
+            );
+        }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                response::Json(json!({ "error": "Database query failed." })),
+            );
+        }
+    };
+
+    return (
+        StatusCode::OK,
+        response::Json(json!({
+            "user": {
+                "user_id": user.user_id,
+                "email": user.email,
+            }
         })),
     );
 }

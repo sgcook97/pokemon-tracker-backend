@@ -8,7 +8,8 @@ name = "backend"
 path = "src/lib.rs"
 
 [dependencies]
-axum = "0.8.1"
+axum = { version = "0.8.1", features = ["macros"] }
+axum-extra = { version = "0.10.0", features = ["cookie"] }
 bcrypt = "0.16.0"
 chrono = { version = "0.4.39", features = ["serde"] }
 diesel = { version = "2.2.6", features = ["chrono", "serde_json", "postgres_backend", "postgres", "r2d2"] }

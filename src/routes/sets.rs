@@ -21,7 +21,7 @@ pub fn set_routes() -> Router<AppState> {
         .route("/{set_id}", get(set_by_id))
         .route("/{set_id}/cards", get(get_cards_by_set))
         .route("/", get(get_featured_sets))
-    // .layer(middleware::from_fn(auth_middleware::verify_token))
+        .layer(middleware::from_fn(auth_middleware::verify_token))
 }
 
 async fn set_by_id(
